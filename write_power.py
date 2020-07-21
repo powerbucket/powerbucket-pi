@@ -264,6 +264,9 @@ def main():
                 next_time=time.time()
                 print('writing power time: {}'.format(next_time-prev_time))
                 prev_time=next_time
+
+        if verbose:
+                print()
                         
 if __name__ == '__main__':
         main()
