@@ -165,7 +165,7 @@ def picture_to_power(picture_path,x,y,r,back_height_percentage,width_percentage,
                         circular_signal=np.concatenate((circle_im,circle_im))
                         correlation=np.array(list(reversed(np.correlate(filter_correlation,
                                                                         circular_signal,
-                                                                	mode='valid'))))
+                                                                        mode='valid'))))
 
                 best_location=( np.argmax(correlation)-1 ) 
 
@@ -198,22 +198,26 @@ def picture_to_power(picture_path,x,y,r,back_height_percentage,width_percentage,
         return final_power
         
 def main():
-        get_time = True
+        verbose = True
         
-        if get_time:
-	        prev_time=time.time()
+        if verbose:
+                if len(sys.argv)<2:
+                        print('test case:')
+                else:
+                        print(sys.argv[1])
+                prev_time=time.time()
                 
         client=pygsheets.authorize()
-        if get_time:
-	        next_time=time.time()
-	        print('authorization time: {}'.format(next_time-prev_time))
-	        prev_time=next_time
+        if verbose:
+                next_time=time.time()
+                print('authorization time: {}'.format(next_time-prev_time))
+                prev_time=next_time
 
         sh=client.open('173power')
-        if get_time:
-	        next_time=time.time()
-	        print('opening sheet time: {}'.format(next_time-prev_time))
-	        prev_time=next_time
+        if verbose:
+                next_time=time.time()
+                print('opening sheet time: {}'.format(next_time-prev_time))
+                prev_time=next_time
         
         wks=sh.sheet1
 
@@ -236,10 +240,10 @@ def main():
                 r=int(wks.get_value('B4'))
                 back_height_percentage=float(wks.get_value('B5'))
                 width_percentage=float(wks.get_value('B6'))
-                if get_time:
-	                next_time=time.time()
-	                print('getting parameters time: {}'.format(next_time-prev_time))
-	                prev_time=next_time
+                if verbose:
+                        next_time=time.time()
+                        print('getting parameters time: {}'.format(next_time-prev_time))
+                        prev_time=next_time
 
         power = picture_to_power(picture_path,
                                  x,
@@ -248,19 +252,18 @@ def main():
                                  back_height_percentage,
                                  width_percentage,
                                  debug=False)
-        if get_time:
-	        next_time=time.time()
-	        print('getting power time: {}'.format(next_time-prev_time))
-	        prev_time=next_time
+        if verbose:
+                next_time=time.time()
+                print('getting power time: {}'.format(next_time-prev_time))
+                prev_time=next_time
 
         pic_time=picture_path[:-4] #datetime.now().strftime("%m/%d/%Y %H:%M:%S")
 
         write_timestamp_and_power(wks,power,pic_time)
-        if get_time:
-	        next_time=time.time()
-	        print('writing power time: {}'.format(next_time-prev_time))
-	        prev_time=next_time
-
-        
+        if verbose:
+                next_time=time.time()
+                print('writing power time: {}'.format(next_time-prev_time))
+                prev_time=next_time
+                        
 if __name__ == '__main__':
         main()

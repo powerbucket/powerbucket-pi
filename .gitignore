@@ -3,3 +3,8 @@
 
 *.json
 google*
+
+*.jpg
+!joe_test_easy.jpg
+
+*.log
