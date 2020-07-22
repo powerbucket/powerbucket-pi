@@ -8,6 +8,7 @@ import copy
 from datetime import datetime
 import sys
 import time
+from scipy import signal
 
 import pygsheets
 
@@ -29,76 +30,6 @@ def angle_to_power(t, ccw=True):
                 return x
         else:
                 return 10-x
-
-# this is the slow, inaccurate way with the full triangle scan
-def picture_to_power_old(picture_path,x,y,r,back_height_percentage,width_percentage):
-        image = Image.open(picture_path)
-        image=image.convert('L') # monochrome
-        # PIL does stuff upside down 
-        image = np.flipud(np.array(image))
-        num_circles=5
-        image_copy=copy.deepcopy(image)
-        final_power=0
-        # we focus on one circle at a time for now
-        thetas = np.linspace(0,360,endpoint=False) * (np.pi / 180)
-        for i,which_circle in enumerate(np.arange(num_circles)):
-                this_x = x+r*2*i  
-                my_grid=np.array([elem for elem in
-                                  itertools.product(np.arange(this_x-r,this_x+r),
-                                                    np.arange(y-r,y+r))])
-                #is_inside_circle=circle.contains_points(my_grid)
-                is_inside_circle=(np.square(my_grid[:,0]-this_x)+np.square(my_grid[:,1]-y))<np.square(r)
-                circle_points=my_grid[is_inside_circle]
-
-                circle_mean=0
-                for point in circle_points:
-                        circle_mean+=image_copy[point[1],point[0]]
-                circle_mean/=len(circle_points)
-
-                ####################
-
-                costs=np.full(len(thetas),0.0)
-                for j,theta in enumerate(thetas):
-
-                        edge_ind_pair=[int(this_x+r*np.cos(theta)),int(y+r*np.sin(theta))]
-                        delta_x=edge_ind_pair[0]-this_x
-                        delta_y=edge_ind_pair[1]-y
-
-                        bottom_ind_pair=[this_x-delta_x*back_height_percentage,y-delta_y*back_height_percentage]
-                        bottom_left_ind_pair=[bottom_ind_pair[0]-delta_y*width_percentage,
-                                                                  bottom_ind_pair[1]+delta_x*width_percentage]
-                        bottom_right_ind_pair=[bottom_ind_pair[0]+delta_y*width_percentage,
-                                                                  bottom_ind_pair[1]-delta_x*width_percentage]
-                        triangle=plt.Polygon([bottom_left_ind_pair,bottom_right_ind_pair,edge_ind_pair])
-
-                        my_grid=np.array([elem for elem in itertools.product(np.arange(this_x-r,this_x+r),np.arange(y-r,y+r))])
-                        is_inside_triangle=triangle.get_path().contains_points(my_grid)
-                        triangle_points=my_grid[is_inside_triangle]
-
-                        costs[j]=0
-                        for point in triangle_points:
-                                # this makes it binary 
-                                if image_copy[point[1],point[0]]>circle_mean:
-                                        # this is setting the cost
-                                        costs[j]+=1
-
-                                        # this part is just so we can see what the computer sees
-                                        image_copy[point[1],point[0]]=200
-                                else:
-                                        image_copy[point[1],point[0]]=0
-                        # need to take average since triangles are all different sizes
-                        costs[j]=costs[j]/len(triangle_points) 
-
-                        # keep track of which points we tested by plotting the edges
-                        #ax1.scatter(edge_ind_pair[0],edge_ind_pair[1])
-
-                min_arg=np.argmin(costs)
-                theta_min=thetas[min_arg]
-                power=angle_to_power_old(theta_min, not which_circle%2)
-                if i!=num_circles-1:
-                        power=np.floor(power)
-                final_power+=power*pow(10,num_circles-1 -i)
-        return final_power
 
 def write_timestamp_and_power_scalar(wks,power,pic_time):
         rownum=1
@@ -196,7 +127,118 @@ def picture_to_power(picture_path,x,y,r,back_height_percentage,width_percentage,
                         plt.show()
                 
         return final_power
+
+def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
+        image = Image.open(picture_path)
+        image=image.convert('L') # monochrome
+        image=ImageOps.invert(image)
+
+        if debug:
+                plt.imshow(image)
+                plt.show()
+
+        imageWithEdges = image.filter(ImageFilter.FIND_EDGES)
+
+        # NOTES: resizing the image first is needed to make the current 
+        # circle-finding algorithm (at the bottom of the notebook) work 
+        size_ratio = imageWithEdges.size[0] / imageWithEdges.size[1]
+        scale_factor=imageWithEdges.size[1] / new_scale
+        imageWithEdges = imageWithEdges.resize((int(new_scale*size_ratio),new_scale),Image.ANTIALIAS)
+
+        # PIL does stuff upside down 
+        imageWithEdges=np.flipud(np.array(imageWithEdges))
+        image=np.flipud(np.array(image))
+
+        num_circles=5
+
+        if debug:
+                plt.contourf(imageWithEdges)
+                plt.show()
+
+        r_arr=np.arange(1,
+                int(np.floor(min(imageWithEdges.shape[0],
+                                 imageWithEdges.shape[1]/num_circles)/2)))
+        positive_r_offsets=[0]
+        negative_r_offsets=[1]
+
+        max_vals=[]
+        max_inds=[]
+        convolutions=[]
+        filters=[]
+        for r in r_arr: #np.arange(int(new_scale*.05),int(new_scale*.1))
+
+                ##### Build filter #####
+                thetas=np.linspace(0,2*np.pi,360,endpoint=False)
+                filter=np.zeros((r*2,r*2*num_circles))
+                ### Fill the negative values first so the positive overwrites it
+                for i in range(num_circles):
+                        for theta in thetas:
+                                ###### only look at half-circles for the edge circles
+                                if i==0 and theta>np.pi/2 and theta<3*np.pi/2:
+                                        continue
+                                if i==num_circles-1 and (theta<np.pi/2 or theta>3*np.pi/2):
+                                        continue
+                                
+                                for r_offset in negative_r_offsets:
+                                        try:
+                                                filter[int(np.floor(r+(r+r_offset)*np.sin(theta))),
+                                                       int(np.floor((2*i+1)*r+(r+r_offset)*np.cos(theta)))]=-1
+                                        except:
+                                                pass
+                for i in range(num_circles):
+                        for theta in thetas:
+                                ###### only look at half-circles for the edge circles
+                                if i==0 and theta>np.pi/2 and theta<3*np.pi/2:
+                                        continue
+                                if i==num_circles-1 and (theta<np.pi/2 or theta>3*np.pi/2):
+                                        continue
+                                
+                                for r_offset in positive_r_offsets:
+                                        try:
+                                                filter[int(np.floor(r+(r+r_offset)*np.sin(theta))),
+                                                       int(np.floor((2*i+1)*r+(r+r_offset)*np.cos(theta)))]=1  
+                                        except:
+                                                pass
+
+                filters.append(filter)
+                convolution=signal.convolve2d(filter,imageWithEdges,mode='valid')
+                max_vals.append(np.max(convolution))
+                max_inds.append(np.unravel_index(convolution.ravel().argmax(),convolution.shape))
+                convolutions.append(convolution)
+
+        max_vals=np.array(max_vals)
+        max_inds=np.array(max_inds)
         
+        ind=np.argmax(max_vals)
+        r=int(r_arr[ind]*scale_factor)
+        x=int(max_inds[ind][1]*scale_factor+r)
+        y=int(max_inds[ind][0]*scale_factor+r)
+
+        if debug:
+                fig,(ax1,ax2,ax3)=plt.subplots(3,sharex=True,sharey=True)
+                ax1.contourf(imageWithEdges)
+                ax1.axvline(max_inds[ind][1],c='r')
+                ax1.axvline(max_inds[ind][1]+r_arr[ind]*2*num_circles,c='r')
+                ax1.axhline(max_inds[ind][0],c='r')
+                ax1.axhline(max_inds[ind][0]+r_arr[ind]*2,c='r')
+                ax1.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
+                ax2.contourf(convolutions[ind])
+                ax2.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
+                ax3.contourf(filters[ind])
+
+                plt.show()
+                
+                plt.contourf(image)
+                
+                thetas=np.linspace(0,2*np.pi,endpoint=False)
+                for i in range(num_circles):
+                        plt.scatter(x+i*2*r,y,c='r')
+                        for theta in thetas:
+                                plt.scatter(x+i*2*r+r*np.cos(theta),y+r*np.sin(theta),c='orange',alpha=.1)
+                plt.show()
+
+        return((x,y,r))
+                
 def main():
         get_time = True
         
@@ -217,7 +259,7 @@ def main():
         
         wks=sh.sheet1
 
-        # # if the user doesn't specify a file do the test case...
+        # if the user doesn't specify a file do the test case...
         if len(sys.argv)<2:
                 print ('usage: python program.py fname')
                 print ('using default "joe_easy_test.jpg" ')
@@ -231,9 +273,17 @@ def main():
 
         else:
                 picture_path=sys.argv[1]
-                x=int(wks.get_value('B2'))
-                y=int(wks.get_value('B3'))
-                r=int(wks.get_value('B4'))
+                if (wks.get_value('B7')!=''):
+                        wks.update_value('B7','')
+                        x,y,r=picture_to_circle_parameters(picture_path,
+                                                           debug=False)
+                        wks.update_value('B2',x)
+                        wks.update_value('B3',y)
+                        wks.update_value('B4',r)
+                else:
+                        x=int(wks.get_value('B2'))
+                        y=int(wks.get_value('B3'))
+                        r=int(wks.get_value('B4'))
                 back_height_percentage=float(wks.get_value('B5'))
                 width_percentage=float(wks.get_value('B6'))
                 if get_time:
@@ -247,7 +297,7 @@ def main():
                                  r,
                                  back_height_percentage,
                                  width_percentage,
-                                 debug=False)
+                                 debug=True)
         if get_time:
 	        next_time=time.time()
 	        print('getting power time: {}'.format(next_time-prev_time))
@@ -260,7 +310,6 @@ def main():
 	        next_time=time.time()
 	        print('writing power time: {}'.format(next_time-prev_time))
 	        prev_time=next_time
-
         
 if __name__ == '__main__':
         main()
