@@ -32,21 +32,29 @@ def angle_to_power(t, ccw=True):
                 return 10-x
 
 def write_timestamp_and_power_scalar(wks,power,pic_time):
-        rownum=1
-        cell_val=wks.get_value('D{}'.format(rownum))
-        while cell_val!='':
-                rownum+=1
+        rownum=wks.get_value('B9')
+        if rownum=='':
+                rownum=1
                 cell_val=wks.get_value('D{}'.format(rownum))
+                while cell_val!='':
+                        rownum+=1
+                        cell_val=wks.get_value('D{}'.format(rownum))
+        else:
+                wks.update_value('B9',int(rownum)+1)
         wks.update_value('D{}'.format(rownum),pic_time)
         wks.update_value('E{}'.format(rownum),power)
 
 def write_timestamp_and_power(wks,power,pic_time):
         col_names=['D','E','F','G','H','I']
-        rownum=1
-        cell_val=wks.get_value('{}{}'.format(col_names[0],rownum))
-        while cell_val!='':
-                rownum+=1
+        rownum=wks.get_value('B9')
+        if rownum=='':
+                rownum=1
                 cell_val=wks.get_value('{}{}'.format(col_names[0],rownum))
+                while cell_val!='':
+                        rownum+=1
+                        cell_val=wks.get_value('{}{}'.format(col_names[0],rownum))
+        else:
+                wks.update_value('B9',int(rownum)+1)
         wks.update_value('{}{}'.format(col_names[0],rownum),pic_time)
         for i in range(len(power)):
                 wks.update_value('{}{}'.format(col_names[i+1],rownum),power[i])
