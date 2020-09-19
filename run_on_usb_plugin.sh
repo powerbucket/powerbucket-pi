@@ -21,6 +21,15 @@ if test -f $WIFIUSB; then
     if ! (cmp -s $WIFIUSB $WIFIPI); then
 	cp $WIFIUSB $WIFIPI
 	REBOOT=true
+	# indicate to user that transfer happened
+	python $SCRIPTDIR/flash_off.py
+	sleep 1
+	python $SCRIPTDIR/flash_on.py
+	sleep 1
+	python $SCRIPTDIR/flash_off.py
+	sleep 1
+	python $SCRIPTDIR/flash_on.py
+	sleep 1
     fi
 fi
 
