@@ -9,8 +9,12 @@ from datetime import datetime
 import sys
 import time
 from scipy import signal
+import subprocess
+import os
 
 import pygsheets
+
+base_dir=os.path.dirname(os.path.realpath(__file__))
 
 # input in rad
 # output number between (0,10)
@@ -43,7 +47,7 @@ def write_timestamp_and_power_scalar(wks,power,pic_time):
         wks.update_value('D{}'.format(rownum),pic_time)
         wks.update_value('E{}'.format(rownum),power)
 
-def write_timestamp_and_power(wks,power,pic_time):
+def write_timestamp_and_power_google(wks,power,pic_time):
         col_names=['D','E','F','G','H','I']
         rownum=wks.get_value('B9')
         if rownum=='':
@@ -56,6 +60,13 @@ def write_timestamp_and_power(wks,power,pic_time):
         wks.update_value('{}{}'.format(col_names[0],rownum),pic_time)
         for i in range(len(power)):
                 wks.update_value('{}{}'.format(col_names[i+1],rownum),power[i])
+
+def write_timestamp_and_power(power, pic_time):
+        command_list=[os.path.join(base_dir,'login.sh')]
+        command_list+=[str(pic_time)]
+        command_list+=[str(numeral) for numeral in power]
+        subprocess.check_call(command_list)
+        
 
 def picture_to_power(picture_path,x,y,r,back_height_percentage,width_percentage,debug=False):
         
@@ -313,9 +324,15 @@ def main():
                 print('getting power time: {}'.format(next_time-prev_time))
                 prev_time=next_time
 
-        pic_time=picture_path[:-4] #datetime.now().strftime("%m/%d/%Y %H:%M:%S")
+        pic_time=datetime.now().strftime("%m/%d/%Y %H:%M:%S")
 
-        write_timestamp_and_power(wks,power,pic_time)
+        # to get the exact time at which the pic was taken
+        # (might be off by a minute since the pi takes
+        # that long to calculate
+        #pic_time=picture_path[:-4] 
+
+        write_timestamp_and_power(power,pic_time)
+        #write_timestamp_and_power(wks,power,pic_time)
         if verbose:
                 next_time=time.time()
                 print('writing power time: {}'.format(next_time-prev_time))
