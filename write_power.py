@@ -14,6 +14,8 @@ import os
 
 import pygsheets
 
+debug=False
+
 base_dir=os.path.dirname(os.path.realpath(__file__))
 
 # input in rad
@@ -86,12 +88,12 @@ def picture_to_power(picture_path,x,y,r,back_height_percentage,width_percentage,
         for i,which_circle in enumerate(np.arange(num_circles)):
                 single_circle=cropped_image[:,which_circle*2*r:(which_circle+1)*2*r]
 
-                length_correlation=int(len(thetas) * width_percentage)
-                filter_correlation=np.zeros(len(thetas))
-                filter_correlation[:int(length_correlation/2)]=1
-                filter_correlation[-int(length_correlation/2):]=1
+                # length_correlation=int(len(thetas) * width_percentage)
+                # filter_correlation=np.zeros(len(thetas))
+                # filter_correlation[:int(length_correlation/2)]=1
+                # filter_correlation[-int(length_correlation/2):]=1
                 
-                r_correlation=int(r/2)
+                # r_correlation=int(r/2)
 
                 if debug:
                         polar_im=np.zeros((r,len(thetas)))
@@ -100,24 +102,30 @@ def picture_to_power(picture_path,x,y,r,back_height_percentage,width_percentage,
                                         polar_im[r_ind,theta_ind]=single_circle[int(np.floor(np.cos(theta)*r_ind+r)),
                                                                                 int(np.floor(np.sin(theta)*r_ind+r))]
 
-                        circular_signal=np.concatenate((polar_im,polar_im),axis=1)
+                        # circular_signal=np.concatenate((polar_im,polar_im),axis=1)
                                 
-                        correlation=np.array(list(reversed(np.correlate(filter_correlation,
-                                                                        circular_signal[r_correlation,:],
-                                                                        mode='valid'))))
-                else:
-                        circle_im=np.zeros(len(thetas))
-                        for theta_ind,theta in enumerate(thetas):
-                                circle_im[theta_ind]=single_circle[int(np.floor(np.cos(theta)*r_correlation+r)),
-                                                                   int(np.floor(np.sin(theta)*r_correlation+r))]
-                        circular_signal=np.concatenate((circle_im,circle_im))
-                        correlation=np.array(list(reversed(np.correlate(filter_correlation,
-                                                                        circular_signal,
-                                                                        mode='valid'))))
+                        # correlation=np.array(list(reversed(np.correlate(filter_correlation,
+                        #                                                 circular_signal[r_correlation,:],
+                        #                                                 mode='valid'))))
+                # else:
+                #         circle_im=np.zeros(len(thetas))
+                #         for theta_ind,theta in enumerate(thetas):
+                #                 circle_im[theta_ind]=single_circle[int(np.floor(np.cos(theta)*r_correlation+r)),
+                #                                                    int(np.floor(np.sin(theta)*r_correlation+r))]
+                #         circular_signal=np.concatenate((circle_im,circle_im))
+                #         correlation=np.array(list(reversed(np.correlate(filter_correlation,
+                #                                                         circular_signal,
+                #                                                         mode='valid'))))
 
-                best_location=( np.argmax(correlation)-1 ) 
-
-                theta_min=thetas[best_location]
+                theta_weights=np.zeros(len(thetas))
+                for theta_ind,theta in enumerate(thetas):
+                        for r_ind in range(r):
+                                theta_weights[theta_ind]+=single_circle[int(np.floor(np.cos(theta)*r_ind+r)),
+                                                                        int(np.floor(np.sin(theta)*r_ind+r))]
+                theta_min=thetas[np.argmax(theta_weights)]
+                                
+                # best_location=( np.argmax(correlation)-1 ) 
+                # theta_min=thetas[best_location]
 
                 power=angle_to_power(theta_min, not which_circle%2)
                 # if i!=num_circles-1:
@@ -134,11 +142,13 @@ def picture_to_power(picture_path,x,y,r,back_height_percentage,width_percentage,
                         polar_grid=np.meshgrid(thetas,list(range(r)))
                         ax1.contourf(polar_grid[0],polar_grid[1],polar_im)
 
-                        ax2.plot(thetas,correlation[1:])
+                        ax2.plot(thetas, theta_weights)
+
+                        # ax2.plot(thetas,correlation[1:])
                         
-                        circular_thetas=np.concatenate((thetas,thetas))
-                        ax1.scatter(circular_thetas[best_location-int(length_correlation/2):best_location+int(length_correlation/2)],
-                                    [r_correlation]*length_correlation,c='r')
+                        # circular_thetas=np.concatenate((thetas,thetas))
+                        # ax1.scatter(circular_thetas[best_location-int(length_correlation/2):best_location+int(length_correlation/2)],
+                        #             [r_correlation]*length_correlation,c='r')
                         ax1.axvline(theta_min,c='r')
                         ax2.axvline(theta_min,c='r')
                         plt.show()
@@ -297,7 +307,7 @@ def main():
                 if (wks.get_value('B7')!=''):
                         wks.update_value('B7','')
                         x,y,r=picture_to_circle_parameters(picture_path,
-                                                           debug=False)
+                                                           debug=debug)
                         wks.update_value('B2',x)
                         wks.update_value('B3',y)
                         wks.update_value('B4',r)
@@ -318,7 +328,7 @@ def main():
                                  r,
                                  back_height_percentage,
                                  width_percentage,
-                                 debug=False)
+                                 debug=debug)
         if verbose:
                 next_time=time.time()
                 print('getting power time: {}'.format(next_time-prev_time))
