@@ -12,9 +12,10 @@ from scipy import signal
 import subprocess
 import os
 
-import pygsheets
-
 debug=False
+use_google=False
+if use_google:
+        import pygsheets
 
 base_dir=os.path.dirname(os.path.realpath(__file__))
 
@@ -49,28 +50,30 @@ def write_timestamp_and_power_scalar(wks,power,pic_time):
         wks.update_value('D{}'.format(rownum),pic_time)
         wks.update_value('E{}'.format(rownum),power)
 
-def write_timestamp_and_power_google(wks,power,pic_time):
-        col_names=['D','E','F','G','H','I']
-        rownum=wks.get_value('B9')
-        if rownum=='':
-                rownum=1
-                cell_val=wks.get_value('{}{}'.format(col_names[0],rownum))
-                while cell_val!='':
-                        rownum+=1
+if use_google:
+        def write_timestamp_and_power(wks,power,pic_time):
+                col_names=['D','E','F','G','H','I']
+                rownum=wks.get_value('B9')
+                if rownum=='':
+                        rownum=1
                         cell_val=wks.get_value('{}{}'.format(col_names[0],rownum))
-        wks.update_value('B9',int(rownum)+1)
-        wks.update_value('{}{}'.format(col_names[0],rownum),pic_time)
-        for i in range(len(power)):
-                wks.update_value('{}{}'.format(col_names[i+1],rownum),power[i])
+                        while cell_val!='':
+                                rownum+=1
+                                cell_val=wks.get_value('{}{}'.format(col_names[0],rownum))
+                wks.update_value('B9',int(rownum)+1)
+                wks.update_value('{}{}'.format(col_names[0],rownum),pic_time)
+                for i in range(len(power)):
+                        wks.update_value('{}{}'.format(col_names[i+1],rownum),power[i])
 
-def write_timestamp_and_power(power, pic_time):
-        command_list=[os.path.join(base_dir,'login.sh')]
-        command_list+=[str(pic_time)]
-        command_list+=[str(numeral) for numeral in power]
-        subprocess.check_call(command_list)
+else:
+        def write_timestamp_and_power(power, pic_time):
+                command_list=[os.path.join(base_dir,'login.sh'),'write']
+                command_list+=[str(pic_time)]
+                command_list+=[str(numeral) for numeral in power]
+                subprocess.check_call(command_list)
         
 
-def picture_to_power(picture_path,x,y,r,back_height_percentage,width_percentage,debug=False):
+def picture_to_power(picture_path,x,y,r,debug=False):
         
         image = Image.open(picture_path)
         image=image.convert('L') # monochrome
@@ -88,7 +91,7 @@ def picture_to_power(picture_path,x,y,r,back_height_percentage,width_percentage,
         for i,which_circle in enumerate(np.arange(num_circles)):
                 single_circle=cropped_image[:,which_circle*2*r:(which_circle+1)*2*r]
 
-                # length_correlation=int(len(thetas) * width_percentage)
+                # length_correlation=int(len(thetas) * .1) 
                 # filter_correlation=np.zeros(len(thetas))
                 # filter_correlation[:int(length_correlation/2)]=1
                 # filter_correlation[-int(length_correlation/2):]=1
@@ -275,20 +278,6 @@ def main():
                 else:
                         print(sys.argv[1])
                 prev_time=time.time()
-                
-        client=pygsheets.authorize()
-        if verbose:
-                next_time=time.time()
-                print('authorization time: {}'.format(next_time-prev_time))
-                prev_time=next_time
-
-        sh=client.open('173power')
-        if verbose:
-                next_time=time.time()
-                print('opening sheet time: {}'.format(next_time-prev_time))
-                prev_time=next_time
-        
-        wks=sh.sheet1
 
         # if the user doesn't specify a file do the test case...
         if len(sys.argv)<2:
@@ -296,14 +285,27 @@ def main():
                 print ('using default "joe_easy_test.jpg" ')
                 print('answer should be 89359.9')
                 picture_path='pictures/joe_easy_test.jpg'
-                x=1178
-                y=1340
-                r=133
-                back_height_percentage=.2 # .2 is for non-radial version
-                width_percentage=.11 #.3 is for non-radial version
-
+                # x=1178
+                # y=1340
+                # r=133
         else:
                 picture_path=sys.argv[1]
+
+        if use_google:
+                client=pygsheets.authorize()
+                if verbose:
+                        next_time=time.time()
+                        print('authorization time: {}'.format(next_time-prev_time))
+                        prev_time=next_time
+
+                sh=client.open('173power')
+                if verbose:
+                        next_time=time.time()
+                        print('opening sheet time: {}'.format(next_time-prev_time))
+                        prev_time=next_time
+
+                wks=sh.sheet1
+
                 if (wks.get_value('B7')!=''):
                         wks.update_value('B7','')
                         x,y,r=picture_to_circle_parameters(picture_path,
@@ -315,19 +317,33 @@ def main():
                         x=int(wks.get_value('B2'))
                         y=int(wks.get_value('B3'))
                         r=int(wks.get_value('B4'))
-                back_height_percentage=float(wks.get_value('B5'))
-                width_percentage=float(wks.get_value('B6'))
-                if verbose:
-                        next_time=time.time()
-                        print('getting parameters time: {}'.format(next_time-prev_time))
-                        prev_time=next_time
+        else:
+                command_list=[os.path.join(base_dir,'login.sh'),'check']
+                out=subprocess.check_output(command_list).decode('utf-8').split()
+                # a little jank: right now if the box is unchecked the update script returns one less output
+                # so we prepend unchecked just to keep everything the same length, if no output appears
+                # but if there is output that's not "checked" then it will still go smoothly 
+                if len(out)<4:
+                        out.insert(0,'unchecked')
+                if out[0]=='checked':
+                        x,y,r=picture_to_circle_parameters(picture_path,
+                                                           debug=debug)
+                        command_list=[os.path.join(base_dir,'login.sh'),'update',str(x),str(y),str(r)]
+                        subprocess.check_call(command_list)
+                else: 
+                        x=int(out[1])
+                        y=int(out[2])
+                        r=int(out[3])
+        if verbose:
+                next_time=time.time()
+                print('getting parameters time: {}'.format(next_time-prev_time))
+                prev_time=next_time
+                        
 
         power = picture_to_power(picture_path,
                                  x,
                                  y,
                                  r,
-                                 back_height_percentage,
-                                 width_percentage,
                                  debug=debug)
         if verbose:
                 next_time=time.time()
@@ -341,8 +357,10 @@ def main():
         # that long to calculate
         #pic_time=picture_path[:-4] 
 
-        write_timestamp_and_power(power,pic_time)
-        #write_timestamp_and_power(wks,power,pic_time)
+        if use_google:
+                write_timestamp_and_power(wks,power,pic_time)
+        else:
+                write_timestamp_and_power(power,pic_time)
         if verbose:
                 next_time=time.time()
                 print('writing power time: {}'.format(next_time-prev_time))
