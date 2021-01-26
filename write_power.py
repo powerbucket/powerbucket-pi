@@ -13,9 +13,10 @@ import subprocess
 import os
 
 debug=False
-use_google=False
+use_google=True
 if use_google:
         import pygsheets
+        gsheet_name = '912-power'
 
 base_dir=os.path.dirname(os.path.realpath(__file__))
 
@@ -298,7 +299,7 @@ def main():
                         print('authorization time: {}'.format(next_time-prev_time))
                         prev_time=next_time
 
-                sh=client.open('173power')
+                sh=client.open(gsheet_name)
                 if verbose:
                         next_time=time.time()
                         print('opening sheet time: {}'.format(next_time-prev_time))
