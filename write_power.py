@@ -20,9 +20,9 @@ if use_google:
     import pygsheets
     gsheet_name = '912-power' # User input!
 #if use_google:
-    write_timestamp_and_power = metron.write_timestamp_and_power_google
+    write_timestamp_and_power = metron.write_google
 else:
-    write_timestamp_and_power = metron.write_timestamp_and_power_website
+    write_timestamp_and_power = metron.write_website
 
 base_dir=os.path.dirname(os.path.realpath(__file__))
 

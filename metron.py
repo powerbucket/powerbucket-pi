@@ -14,8 +14,8 @@ import copy
 import numpy as np
 import matplotlib.pyplot as plt
 
-# input in rad
-# output number between (0,10)
+# input : radians
+# output: floating number between (0,10)
 def angle_to_power(t, ccw=True):
     x = 10 * t / (2*np.pi)
 
@@ -36,7 +36,8 @@ def write_timestamp_and_power_scalar(wks,power,pic_time):
     wks.update_value('D{}'.format(rownum),pic_time)
     wks.update_value('E{}'.format(rownum),power)
 
-def write_timestamp_and_power_google(wks,power,pic_time):
+# writes timestamp and power to googlesheet
+def write_google(wks,power,pic_time):
     col_names=['D','E','F','G','H','I']
     rownum=wks.get_value('B9')
     if rownum=='':
@@ -50,7 +51,8 @@ def write_timestamp_and_power_google(wks,power,pic_time):
     for i in range(len(power)):
         wks.update_value('{}{}'.format(col_names[i+1],rownum),power[i])
 
-def write_timestamp_and_power_website(power, pic_time):
+# writes timestamp and power to website
+def write_website(power, pic_time):
     command_list=[os.path.join(base_dir,'login.sh'),'write']
     command_list+=[str(pic_time)]
     command_list+=[str(numeral) for numeral in power]
@@ -119,7 +121,7 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
         plt.imshow(image)
         plt.show()
 
-    imageWithEdges = image.filter(ImageFilter.FIND_EDGES)
+    imageWithEdges = image.window(ImageFilter.FIND_EDGES)
 
     # NOTES: resizing the image first is needed to make the current 
     # circle-finding algorithm (at the bottom of the notebook) work 
@@ -140,21 +142,23 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
     r_arr=np.arange(1,
         int(np.floor(min(imageWithEdges.shape[0],
                  imageWithEdges.shape[1]/num_circles)/2)))
-    positive_r_offsets=[0]
-    negative_r_offsets=[1]
+
+    positive_r_offset = 0
+    negative_r_offset = 1
 
     max_vals=[]
     max_inds=[]
     convolutions=[]
-    filters=[]
+    windows=[]
     for r in r_arr: 
-    # for each radius, build a filter, and scan
+    # for each radius, build a window, and scan
 
-        ##### Build filter #####
-        # The filter is composed of two rings, which sum to 0 in principle. 
+        ##### Build window #####
+        # The window is composed of two rings, which sum to 0 in principle. 
         # A negative ring is slightly large than the positive ring.
         thetas=np.linspace(0,2*np.pi,360,endpoint=False)
-        filter=np.zeros((r*2,r*2*num_circles))
+        window=np.zeros((r*2,r*2*num_circles))
+
         ### Fill the negative values first so the positive overwrites it
         for i in range(num_circles):
             for theta in thetas:
@@ -164,31 +168,21 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
                 if i==num_circles-1 and (theta<np.pi/2 or theta>3*np.pi/2):
                     continue
                 
-                for r_offset in negative_r_offsets:
-                # this is a loop over one element; Joe used to have multiple layers, but now we're going with 1
-                    try:
-                        filter[int(np.floor(r+(r+r_offset)*np.sin(theta))),
-                               int(np.floor((2*i+1)*r+(r+r_offset)*np.cos(theta)))]=-1
-                    except:
-                        pass
-        for i in range(num_circles):
-            for theta in thetas:
-                ###### only look at half-circles for the edge circles
-                if i==0 and theta>np.pi/2 and theta<3*np.pi/2:
-                    continue
-                if i==num_circles-1 and (theta<np.pi/2 or theta>3*np.pi/2):
-                    continue
-                
-                for r_offset in positive_r_offsets:
-                    try:
-                        filter[int(np.floor(r+(r+r_offset)*np.sin(theta))),
-                               int(np.floor((2*i+1)*r+(r+r_offset)*np.cos(theta)))]=1  
-                    except:
-                        pass
+                try:
+                    window[int(np.floor(r+(r+negative_r_offset)*np.sin(theta))),
+                           int(np.floor((2*i+1)*r+(r+r_offset)*np.cos(theta)))]=-1
+                except:
+                    pass
 
-        filters.append(filter)
+                try:
+                    window[int(np.floor(r+(r+positive_r_offset)*np.sin(theta))),
+                           int(np.floor((2*i+1)*r+(r+r_offset)*np.cos(theta)))]=1  
+                except:
+                    pass
+
+        windows.append(window)
         # main computation is here: signal.convolve2d
-        convolution=signal.convolve2d(filter,imageWithEdges,mode='valid')
+        convolution=signal.convolve2d(window,imageWithEdges,mode='valid')
         max_vals.append(np.max(convolution))
         max_inds.append(np.unravel_index(convolution.ravel().argmax(),convolution.shape))
         convolutions.append(convolution)
@@ -211,7 +205,7 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
         ax1.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
         ax2.contourf(convolutions[ind])
         ax2.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
-        ax3.contourf(filters[ind])
+        ax3.contourf(windows[ind])
 
         plt.show()
         
