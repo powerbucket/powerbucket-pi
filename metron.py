@@ -148,7 +148,6 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
     r_arr=np.arange(1,
                     int(np.floor(min(imageWithEdges.shape[0],
                     imageWithEdges.shape[1]/num_circles)/2)))
-    print(r_arr)
 
     positive_r_offset = 0
     negative_r_offset = 1
