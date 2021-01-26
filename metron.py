@@ -3,16 +3,19 @@
   Updated: 25 January 2021
 '''
 
-# pillow library for image handling
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import signal
+
+# Pillow library for image handling
 from PIL import Image
 from PIL import ImageFilter
 from PIL import ImageOps
 
-import itertools # unused?
+#import itertools # unused?
 import copy
-
-import numpy as np
-import matplotlib.pyplot as plt
+import os
+import subprocess
 
 # input : radians
 # output: floating number between (0,10)
@@ -53,12 +56,15 @@ def write_google(wks,power,pic_time):
 
 # writes timestamp and power to website
 def write_website(power, pic_time):
+    base_dir=os.path.dirname(os.path.realpath(__file__))
     command_list=[os.path.join(base_dir,'login.sh'),'write']
     command_list+=[str(pic_time)]
     command_list+=[str(numeral) for numeral in power]
     subprocess.check_call(command_list)
     
 
+# Inputs: x,y are center of circle, r is radius
+# Output: 5 digit power
 def picture_to_power(picture_path,x,y,r,debug=False):
     
     image = Image.open(picture_path)
@@ -70,9 +76,9 @@ def picture_to_power(picture_path,x,y,r,debug=False):
     num_circles=5
     
     cropped_image=image[y-r:y+r, x-r:x+(num_circles*2-1)*r]
-    # x,y are center of circle
 
-    num_circles=5
+
+#    num_circles=5
     final_power=[]
     thetas = np.linspace(0,2*np.pi,num=200,endpoint=False) 
     for i,which_circle in enumerate(np.arange(num_circles)):
@@ -121,7 +127,7 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
         plt.imshow(image)
         plt.show()
 
-    imageWithEdges = image.window(ImageFilter.FIND_EDGES)
+    imageWithEdges = image.filter(ImageFilter.FIND_EDGES)
 
     # NOTES: resizing the image first is needed to make the current 
     # circle-finding algorithm (at the bottom of the notebook) work 
@@ -140,8 +146,9 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
         plt.show()
 
     r_arr=np.arange(1,
-        int(np.floor(min(imageWithEdges.shape[0],
-                 imageWithEdges.shape[1]/num_circles)/2)))
+                    int(np.floor(min(imageWithEdges.shape[0],
+                    imageWithEdges.shape[1]/num_circles)/2)))
+    print(r_arr)
 
     positive_r_offset = 0
     negative_r_offset = 1
@@ -168,15 +175,25 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
                 if i==num_circles-1 and (theta<np.pi/2 or theta>3*np.pi/2):
                     continue
                 
+                # first negatives
                 try:
                     window[int(np.floor(r+(r+negative_r_offset)*np.sin(theta))),
-                           int(np.floor((2*i+1)*r+(r+r_offset)*np.cos(theta)))]=-1
+                           int(np.floor((2*i+1)*r+(r+negative_r_offset)*np.cos(theta)))]=-1
                 except:
                     pass
-
+#
+#        for i in range(num_circles):
+#            for theta in thetas:
+#                ###### only look at half-circles for the edge circles
+#                if i==0 and theta>np.pi/2 and theta<3*np.pi/2:
+#                    continue
+#                if i==num_circles-1 and (theta<np.pi/2 or theta>3*np.pi/2):
+#                    continue
+#
+                # then positives
                 try:
                     window[int(np.floor(r+(r+positive_r_offset)*np.sin(theta))),
-                           int(np.floor((2*i+1)*r+(r+r_offset)*np.cos(theta)))]=1  
+                           int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]=1  
                 except:
                     pass
 
@@ -191,9 +208,9 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
     max_inds=np.array(max_inds)
     
     ind=np.argmax(max_vals)
-    r=int(r_arr[ind]*scale_factor)
-    x=int(max_inds[ind][1]*scale_factor+r)
-    y=int(max_inds[ind][0]*scale_factor+r)
+    r = int( r_arr[ind]*scale_factor )
+    x = int( max_inds[ind][1]*scale_factor + r)
+    y = int( max_inds[ind][0]*scale_factor + r)
 
     if debug:
         fig,(ax1,ax2,ax3)=plt.subplots(3,sharex=True,sharey=True)
@@ -218,5 +235,6 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
                 plt.scatter(x+i*2*r+r*np.cos(theta),y+r*np.sin(theta),c='orange',alpha=.1)
         plt.show()
 
-    return((x,y,r))
+    # ((,)) for html
+    return ((x,y,r))
         

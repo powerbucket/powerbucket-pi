@@ -2,7 +2,6 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import signal
 
 import sys
 import os
@@ -12,19 +11,19 @@ import time
 from datetime import datetime
 import metron 
 
+base_dir=os.path.dirname(os.path.realpath(__file__))
+
 verbose = True
-debug=False
-use_google=True
+debug   = True
+use_google=False
 
 if use_google:
     import pygsheets
     gsheet_name = '912-power' # User input!
-#if use_google:
     write_timestamp_and_power = metron.write_google
 else:
     write_timestamp_and_power = metron.write_website
 
-base_dir=os.path.dirname(os.path.realpath(__file__))
 
 def main():
     
@@ -82,7 +81,7 @@ def main():
         if len(out)<4:
             out.insert(0,'unchecked')
         if out[0]=='checked':
-            x,y,r=picture_to_circle_parameters(picture_path,
+            x,y,r=metron.picture_to_circle_parameters(picture_path,
                                debug=debug)
             command_list=[os.path.join(base_dir,'login.sh'),'update',str(x),str(y),str(r)]
             subprocess.check_call(command_list)

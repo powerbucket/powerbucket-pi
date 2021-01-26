@@ -4,7 +4,7 @@ LOGIN_URL="http://powerbucket.herokuapp.com/accounts/login/"
 SUBMISSION_URL="http://powerbucket.herokuapp.com/readings/submission/"
 SETTINGS_URL="http://powerbucket.herokuapp.com/readings/change_settings/"
 YOUR_USER=$BUCKET_USER
-YOUR_PASS=$BUCKET_PASSWORD
+YOUR_PASS=$BUCKET_PASS
 COOKIES=cookies.txt
 CURL_BIN="curl -s -c $COOKIES -b $COOKIES -e $LOGIN_URL"
 
