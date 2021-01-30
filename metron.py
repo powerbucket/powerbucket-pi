@@ -186,6 +186,16 @@ def find_circle(picture_path, new_scale=200, debug=True):
 
     image, imageWithEdges, scale_factor = read_image(picture_path, new_scale)
 
+    # new filter
+    x_filter = 0.2
+    y_filter = 0.33
+    yc,xc = np.shape(imageWithEdges) 
+    xmin = int(xc*x_filter)
+    xmax = int(xc*(1-x_filter))
+    ymin = int(yc*y_filter)
+    ymax = int(yc*(1-y_filter))
+    cropped_reduced_image = imageWithEdges[ymin:ymax,xmin:xmax]
+
     if debug:
         plt.figure(figsize=(8,4))
         plt.subplot(1,2,1)
@@ -195,6 +205,12 @@ def find_circle(picture_path, new_scale=200, debug=True):
         plt.subplot(1,2,2)
         plt.title('Image with edges')
         plt.contourf(imageWithEdges) 
+        
+        plt.axhline(0.33* yc, color='C1', label='proposed crop')
+        plt.axhline(0.67* yc, color='C1')
+        plt.axvline(0.2* xc, color='C1')
+        plt.axvline(0.8* xc, color='C1')
+        plt.legend()
         plt.show()
     
     num_circles=5
@@ -213,8 +229,8 @@ def find_circle(picture_path, new_scale=200, debug=True):
         
         # main computation is here: signal.convolve2d
         
-        convolution = signal.convolve2d(window,imageWithEdges,mode='valid')
-        #convolution = metron.signal.convolve2d(window,crop_reduced_image,mode='valid')
+        #convolution = signal.convolve2d(window,imageWithEdges,mode='valid')
+        convolution = signal.convolve2d(window,cropped_reduced_image,mode='valid')
         max_vals.append(np.max(convolution))
         max_inds.append(np.unravel_index(convolution.ravel().argmax(), convolution.shape)) # get 2D index
         convolutions.append(convolution)
@@ -226,8 +242,8 @@ def find_circle(picture_path, new_scale=200, debug=True):
     ind = np.argmax(max_vals) # choose max out of r_arr
     r = int( r_arr[ind]*scale_factor )
     
-    xmin = 0
-    ymin = 0
+    #xmin = 0
+    #ymin = 0
     reduced_x = max_inds[ind][1] + xmin
     reduced_y = max_inds[ind][0] + ymin
     x = int( reduced_x*scale_factor + r)
@@ -236,21 +252,22 @@ def find_circle(picture_path, new_scale=200, debug=True):
     
     print('x,y,r:', x,y,r)
     if debug:
-        fig,(ax1,ax2,ax3)=plt.subplots(3,sharex=True,sharey=True)
-        ax1.contourf(imageWithEdges)
-        ax1.axvline(max_inds[ind][1],c='r')
-        ax1.axvline(max_inds[ind][1]+r_arr[ind]*2*num_circles,c='r')
-        ax1.axhline(max_inds[ind][0],c='r')
-        ax1.axhline(max_inds[ind][0]+r_arr[ind]*2,c='r')
-        ax1.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
-        ax2.contourf(convolutions[ind])
-        ax2.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
-        ax3.contourf(windows[ind])
-
-        plt.show()
+#        fig,(ax1,ax2,ax3)=plt.subplots(3,sharex=True,sharey=True)
+#        ax1.contourf(imageWithEdges)
+#        ax1.axvline(max_inds[ind][1],c='r')
+#        ax1.axvline(max_inds[ind][1]+r_arr[ind]*2*num_circles,c='r')
+#        ax1.axhline(max_inds[ind][0],c='r')
+#        ax1.axhline(max_inds[ind][0]+r_arr[ind]*2,c='r')
+#        ax1.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
+#        ax2.contourf(convolutions[ind])
+#        ax2.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
+#        ax3.contourf(windows[ind])
+#
+#        plt.show()
 
         plt.figure()
         plt.contourf(image)
+        plt.title('Identified Circles')
         
         thetas=np.linspace(0,2*np.pi,endpoint=False)
         for i in range(num_circles):
