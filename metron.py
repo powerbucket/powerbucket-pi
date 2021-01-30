@@ -145,14 +145,62 @@ def read_image(picture_path, new_scale, debug=False):
 # the edge circles only contain half windows
 # must have at least N > 3 (else degenerate)
 def build_window(r,num_circles):
-    positive_r_offset = 0
-    negative_r_offset = 1
 
     ##### Build window #####
     # The window is composed of two rings, which sum to 0 in principle. 
     # A negative ring is slightly large than the positive ring.
+    p_window = np.zeros( (r*2, 2*r*num_circles) )
+    n_window = np.zeros( (r*2, 2*r*num_circles) )
+
+    thetas = np.linspace(0,2*np.pi,360,endpoint=False)
+    positive_r_offset = 0
+    negative_r_offset = 1
+
+    ### Fill the negative values first so the positive overwrites it
+
+    for i in range(num_circles):
+        for theta in thetas:
+           ###### only look at half-circles for the edge circles
+            if i==0 and theta>np.pi/2 and theta<3*np.pi/2:
+                continue
+            if i==num_circles-1 and (theta<np.pi/2 or theta>3*np.pi/2):
+                continue
+
+            # first edit negatives
+            try:
+                n_window[ int(np.floor( r+(r+negative_r_offset)*np.sin(theta) )),
+                    int(np.floor( (2*i+1)*r+(r+negative_r_offset)*np.cos(theta) ))]=-1
+            except:
+                pass
+
+            # then edit positives
+            try:
+                p_window[int(np.floor(r+ (r+positive_r_offset)*np.sin(theta))),
+                         int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]=1  
+            except:
+                pass
+            
+            # weight center
+            #p_window[int(np.floor(r )), int(np.floor((2*i+1)*r ))] = 2
     
-    window = np.zeros( (r*2, 2*r*num_circles) )
+    weight = np.abs( np.sum(p_window)/ np.sum(n_window) )      
+    window = p_window + n_window * weight
+    
+    return window
+ 
+
+
+def square_circle_window(r,num_circles=5):
+    
+    positive_r_offset = 0
+    negative_r_offset = 1
+    
+    ##### Build window #####
+    # The window is composed of a negative square (2D), overlayed with a positive circle (1D)
+    # The overall sum is 0.
+    
+    p_window = np.zeros( (r*2, 2*r*num_circles) )
+    n_window = np.zeros( (r*2, 2*r*num_circles) ) - 1
     thetas = np.linspace(0,2*np.pi,360,endpoint=False)
 
     ### Fill the negative values first so the positive overwrites it
@@ -165,220 +213,188 @@ def build_window(r,num_circles):
             if i==num_circles-1 and (theta<np.pi/2 or theta>3*np.pi/2):
                 continue
 
-            # WARNING: these try/except blocks are prone to cause bugs (!)
-            # first edit negatives
-            try:
-                window[ int(np.floor( r+(r+negative_r_offset)*np.sin(theta) )),
-                        int(np.floor( (2*i+1)*r+(r+negative_r_offset)*np.cos(theta) ))]=-1
-            except:
-                pass
-
             # then edit positives
             try:
-                window[int(np.floor(r+(r+positive_r_offset)*np.sin(theta))),
-                       int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]=1  
+                p_window[int(np.floor(r+ (r+positive_r_offset)*np.sin(theta))),
+                         int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]=1  
             except:
                 pass
-        
+            
+            # weight center
+            #p_window[int(np.floor(r )), int(np.floor((2*i+1)*r ))] = 1
+    
+    #print( np.sum(p_window), np.sum(n_window) )
+    weight = np.abs( np.sum(p_window)/ np.sum(n_window) )      
+    window = p_window + n_window * weight
+    
     return window
 
-def find_circle(picture_path, new_scale=200, debug=True):
+def find_circle(picture_path, new_scale=200, debug=True, crop=True):
 
     image, imageWithEdges, scale_factor = read_image(picture_path, new_scale)
-
-    # new filter
-    x_filter = 0.2
-    y_filter = 0.33
-    yc,xc = np.shape(imageWithEdges) 
+    
+    # crop image
+    yc,xc = np.shape(imageWithEdges)
+    x_filter = 0.1
+    y_filter = 0.2
+    
     xmin = int(xc*x_filter)
-    xmax = int(xc*(1-x_filter))
+    xmax = int(xc*(1-x_filter))   
     ymin = int(yc*y_filter)
     ymax = int(yc*(1-y_filter))
-    cropped_reduced_image = imageWithEdges[ymin:ymax,xmin:xmax]
+    crop_reduced_image = imageWithEdges[ymin:ymax,xmin:xmax]
 
     if debug:
         plt.figure(figsize=(8,4))
+        
         plt.subplot(1,2,1)
         plt.title('Image')
-        plt.contourf(image)
+        plt.contourf(image) # first image
+        plt.colorbar()
     
         plt.subplot(1,2,2)
         plt.title('Image with edges')
-        plt.contourf(imageWithEdges) 
-        
-        plt.axhline(0.33* yc, color='C1', label='proposed crop')
-        plt.axhline(0.67* yc, color='C1')
-        plt.axvline(0.2* xc, color='C1')
-        plt.axvline(0.8* xc, color='C1')
+        plt.contourf(imageWithEdges) # first image
+        plt.colorbar()
+        plt.axhline(ymin, color='C1', label='proposed crop')
+        plt.axhline(ymax, color='C1')
+        plt.axvline(xmin, color='C1')
+        plt.axvline(xmax, color='C1')
         plt.legend()
+        
         plt.show()
-    
-    num_circles=5
-    r_arr=np.arange(1,15)
-    
+        
+        
     max_vals=[]
     max_inds=[]
     convolutions=[]
     windows=[]
     
+    num_circles=5
+    
+    r_arr = np.arange(3,15)
     for r in r_arr: 
     # for each radius, build a window, and scan
     
-        window = build_window(r,num_circles=5)
+        #window = build_window(r,num_circles=num_circles)
+        window = square_circle_window(r,num_circles=num_circles)
         windows.append(window)
         
         # main computation is here: signal.convolve2d
         
-        #convolution = signal.convolve2d(window,imageWithEdges,mode='valid')
-        convolution = signal.convolve2d(window,cropped_reduced_image,mode='valid')
+        
+        if (crop):
+            convolution = signal.convolve2d(window,crop_reduced_image,mode='valid')
+        else:
+            convolution = signal.convolve2d(window,imageWithEdges,mode='valid')
+            
+        convolutions.append(convolution)
         max_vals.append(np.max(convolution))
         max_inds.append(np.unravel_index(convolution.ravel().argmax(), convolution.shape)) # get 2D index
-        convolutions.append(convolution)
+        
     
-    print(max_vals)
     max_vals=np.array(max_vals)
     max_inds=np.array(max_inds)
     
     ind = np.argmax(max_vals) # choose max out of r_arr
-    r = int( r_arr[ind]*scale_factor )
-    
-    #xmin = 0
-    #ymin = 0
-    reduced_x = max_inds[ind][1] + xmin
-    reduced_y = max_inds[ind][0] + ymin
-    x = int( reduced_x*scale_factor + r)
-    y = int( reduced_y*scale_factor + r)
     
     
-    print('x,y,r:', x,y,r)
-    if debug:
-#        fig,(ax1,ax2,ax3)=plt.subplots(3,sharex=True,sharey=True)
-#        ax1.contourf(imageWithEdges)
-#        ax1.axvline(max_inds[ind][1],c='r')
-#        ax1.axvline(max_inds[ind][1]+r_arr[ind]*2*num_circles,c='r')
-#        ax1.axhline(max_inds[ind][0],c='r')
-#        ax1.axhline(max_inds[ind][0]+r_arr[ind]*2,c='r')
-#        ax1.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
-#        ax2.contourf(convolutions[ind])
-#        ax2.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
-#        ax3.contourf(windows[ind])
-#
-#        plt.show()
+    # x,y,r - scaled, reduced coordinaes
+    # X,Y,R - original, larger coordinates
+    r = r_arr[ind]
+    x = max_inds[ind][1] + r
+    y = max_inds[ind][0] + r
+    
+    if crop:
+        x += xmin
+        y += ymin
+        
+    X = int( x*scale_factor )
+    Y = int( y*scale_factor )
+    R = int( r*scale_factor )
 
+    if debug:
+    
         plt.figure()
         plt.contourf(image)
-        plt.title('Identified Circles')
-        
+    
         thetas=np.linspace(0,2*np.pi,endpoint=False)
         for i in range(num_circles):
-            plt.scatter(x+i*2*r,y,c='r')
+            plt.scatter(X + i*2*R, Y, c='r')
             for theta in thetas:
-                plt.scatter(x+i*2*r+r*np.cos(theta),y+r*np.sin(theta),c='orange',alpha=.1)
-        plt.show()
-
-    #plt.show()
-    print('x,y,r:', x,y,r)
-    
-    return ((x,y,r))# ((,)) for html
-
-# reads picture, find circle parameters (x,y,r)
-def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
-
-    image, imageWithEdges, scale_factor = read_image(picture_path, new_scale)
-
-    if debug:
-        plt.figure()
-        plt.contourf(imageWithEdges)
-        plt.show()
-
-    num_circles=5
-    r_arr=np.arange(1,15)
-                    #int(np.floor(min(imageWithEdges.shape[0],
-                    #imageWithEdges.shape[1]/num_circles)/2)))
-
-    positive_r_offset = 0
-    negative_r_offset = 1
-
-    max_vals=[]
-    max_inds=[]
-    convolutions=[]
-    windows=[]
-    for r in r_arr: 
-    # for each radius, build a window, and scan
-
-        ##### Build window #####
-        # The window is composed of two rings, which sum to 0 in principle. 
-        # A negative ring is slightly large than the positive ring.
-        thetas=np.linspace(0,2*np.pi,360,endpoint=False)
-        window=np.zeros((r*2,r*2*num_circles))
-
-        ### Fill the negative values first so the positive overwrites it
-        for i in range(num_circles):
-            for theta in thetas:
-                ###### only look at half-circles for the edge circles
-                if i==0 and theta>np.pi/2 and theta<3*np.pi/2:
-                    continue
-                if i==num_circles-1 and (theta<np.pi/2 or theta>3*np.pi/2):
-                    continue
+                plt.scatter(X + i*2*R + R*np.cos(theta),
+                            Y + R*np.sin(theta),c='orange',alpha=.1)
                 
-                # first negatives
-                try:
-                    window[int(np.floor(r+(r+negative_r_offset)*np.sin(theta))),
-                           int(np.floor((2*i+1)*r+(r+negative_r_offset)*np.cos(theta)))]=-1
-                except:
-                    pass
-
-                # then positives
-                try:
-                    window[int(np.floor(r+(r+positive_r_offset)*np.sin(theta))),
-                           int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]=1  
-                except:
-                    pass
-
-        windows.append(window)
-        # main computation is here: signal.convolve2d
-        convolution=signal.convolve2d(window,imageWithEdges,mode='valid')
-        max_vals.append(np.max(convolution))
-        max_inds.append(np.unravel_index(convolution.ravel().argmax(),convolution.shape))
-        convolutions.append(convolution)
+        plt.axhline(ymin*scale_factor, color='C1')
+        plt.axhline(ymax*scale_factor, color='C1')
+        plt.axvline(xmin*scale_factor, color='C1')
+        plt.axvline(xmax*scale_factor, color='C1')
     
-    max_vals=np.array(max_vals)
-    max_inds=np.array(max_inds)
     
-    ind=np.argmax(max_vals)
-    r = int( r_arr[ind]*scale_factor )
-    x = int( max_inds[ind][1]*scale_factor + r)
-    y = int( max_inds[ind][0]*scale_factor + r)
+        plt.show()
+        value = input('  Are you satisfied? [y]/n\n')
+        if value == 'n':
+            print('user says no')
+            X,Y,R = user_select(image)
+        else:
+            print('user says yes')
+    
+    print('x,y,r:', X,Y,R)
 
-    if debug:
-        fig,(ax1,ax2,ax3)=plt.subplots(3,sharex=True,sharey=True)
-        ax1.contourf(imageWithEdges)
-        ax1.axvline(max_inds[ind][1],c='r')
-        ax1.axvline(max_inds[ind][1]+r_arr[ind]*2*num_circles,c='r')
-        ax1.axhline(max_inds[ind][0],c='r')
-        ax1.axhline(max_inds[ind][0]+r_arr[ind]*2,c='r')
-        ax1.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
-        ax2.contourf(convolutions[ind])
-        ax2.scatter(max_inds[ind][1],max_inds[ind][0],c='r')
-        ax3.contourf(windows[ind])
-
-        #plt.show()
-
-        plt.figure()
-        plt.contourf(image)
-        
-        thetas=np.linspace(0,2*np.pi,endpoint=False)
-        for i in range(num_circles):
-            plt.scatter(x+i*2*r,y,c='r')
-            for theta in thetas:
-                plt.scatter(x+i*2*r+r*np.cos(theta),y+r*np.sin(theta),c='orange',alpha=.1)
-        #plt.show()
-
-    plt.show()
-    print('x,y,r:', x,y,r)
     # ((,)) for html
-    return ((x,y,r))
-
+    return ((X,Y,R))
+    
+coords = []
+def user_select(img):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    #global picture_path
+    
+    #ax.set_title( picture_path.split('/')[-1] )
+    
+    ax.contourf(img)
+    
+    
+    def plot_circle(x,y,r, N=100):
+    
+        t = np.linspace(0,np.pi*2,N,endpoint=False)
+        X = x + r*np.cos(t)
+        Y = y + r*np.sin(t)
+    
+        plt.plot(X,Y,'C1')
+    
+    def onclick(event):
+        global ix, iy
+        ix, iy = event.xdata, event.ydata
+        print ('x = %d, y = %d'%( ix, iy) )
+        plt.plot(ix,iy,'C1*')
+        plt.draw()
+    
+        global coords
+        coords.append((ix, iy))
+    
+        if len(coords) == 5:
+            fig.canvas.mpl_disconnect(cid)
+    
+            x,y = np.transpose(coords)
+            dx = ( x[1:] - x[:-1] )/2
+            dy = ( y[1:] - y[:-1] )/2
+            r  = np.mean( np.sqrt(dx*dx + dy*dy) )
+            print('average radius:',r)
+    
+            for i in range(5):
+                plot_circle(x[i],y[i],r)
+    
+        #return coords
+    cid = fig.canvas.mpl_connect('button_press_event', onclick)
+    plt.show()    
+    
+    x,y = np.transpose(coords)
+    dx = ( x[1:] - x[:-1] )/2
+    dy = ( y[1:] - y[:-1] )/2
+    r  = np.mean( np.sqrt(dx*dx + dy*dy) )
+    #return x[-1], y[-1], r
+    return x[0], y[0], r
         
 ### main functions
 def load_file(argv, verbose=False):
