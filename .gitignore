@@ -6,5 +6,10 @@ google*
 
 *.jpg
 !joe_test_easy.jpg
+!forrest_medium.jpg
+!highup_forrest.jpg
+!joe_easy_test.jpg
+!slightly_twisted_forrest.jpg
+!very_twisted_forrest.jpg
 
 *.log
