@@ -38,33 +38,11 @@ else:
    upload()
 '''
 
-def load_file(argv, verbose=False):
-
-    if verbose:
-        if len(argv)<2:
-            print('test case:')
-        else:
-            print(argv[1])
-        prev_time=time.time()
-
-    # if the user doesn't specify a file do the test case...
-    if len(argv)<2:
-        print ('usage: python program.py fname')
-        print ('using default "joe_easy_test.jpg" ')
-        print('answer should be 89359.9')
-        picture_path='pictures/joe_easy_test.jpg'
-        # x=1178
-        # y=1340
-        # r=133
-    else:
-        picture_path=argv[1]
-
-    return picture_path
 
 def main():
    
     # 1 - Load File 
-    picture_path = load_file(sys.argv, verbose=verbose)
+    picture_path = metron.load_file(sys.argv, verbose=verbose)
     if verbose:
         prev_time=time.time()
 
@@ -86,9 +64,9 @@ def main():
 
         if (UPDATE or wks.get_value('B7')!=''):
             wks.update_value('B7','')
-            x,y,r=metron.picture_to_circle_parameters(picture_path,
-                               debug=debug)
-#            x,y,r = (564,1022,155) # hard code (!)
+            #x,y,r=metron.picture_to_circle_parameters(picture_path, debug=debug)
+            x,y,r = metron.find_circle(picture_path)
+            #x,y,r = (564,1022,155) # hard code (!)
             wks.update_value('B2',x)
             wks.update_value('B3',y)
             wks.update_value('B4',r)
@@ -106,9 +84,9 @@ def main():
         # but if there is output that's not "checked" then it will still go smoothly 
         if len(out)<4:
             out.insert(0,'unchecked')
-        if out[0]=='checked':
+        if (UPDATE or out[0]=='checked'):
             x,y,r=metron.picture_to_circle_parameters(picture_path,
-                               debug=debug)
+                                                      debug=debug)
             command_list=[os.path.join(base_dir,'login.sh'),'update',str(x),str(y),str(r)]
             subprocess.check_call(command_list)
         else: 
@@ -116,42 +94,6 @@ def main():
             y=int(out[2])
             r=int(out[3])
 
-    # 3 - read image
-    if verbose:
-        next_time=time.time()
-        print('getting parameters time: {}'.format(next_time-prev_time))
-        prev_time=next_time
-            
-
-    power = metron.picture_to_power(picture_path,
-                 x,
-                 y,
-                 r,
-                 debug=debug)
-    if verbose:
-        next_time=time.time()
-        print('getting power time: {}'.format(next_time-prev_time))
-        prev_time=next_time
-
-    pic_time=datetime.now().strftime("%m/%d/%Y %H:%M:%S")
-
-    # to get the exact time at which the pic was taken
-    # (might be off by a minute since the pi takes
-    # that long to calculate
-    #pic_time=picture_path[:-4] 
-
-
-    # 4 - upload pictures
-    if use_google:
-        write_timestamp_and_power(wks,power,pic_time)
-    else:
-        write_timestamp_and_power(power,pic_time)
-
-    if verbose:
-        next_time=time.time()
-        print('writing power time: {}'.format(next_time-prev_time))
-        prev_time=next_time
-        print()
             
 if __name__ == '__main__':
     main()
