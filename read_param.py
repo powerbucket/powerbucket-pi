@@ -85,8 +85,8 @@ def main():
         if len(out)<4:
             out.insert(0,'unchecked')
         if (UPDATE or out[0]=='checked'):
-            x,y,r=metron.picture_to_circle_parameters(picture_path,
-                                                      debug=debug)
+            #x,y,r=metron.picture_to_circle_parameters(picture_path, debug=debug)
+            x,y,r = metron.find_circle(picture_path)
             command_list=[os.path.join(base_dir,'login.sh'),'update',str(x),str(y),str(r)]
             subprocess.check_call(command_list)
         else: 

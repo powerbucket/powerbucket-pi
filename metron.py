@@ -12,7 +12,6 @@ from PIL import Image
 from PIL import ImageFilter
 from PIL import ImageOps
 
-#import itertools # unused?
 import time
 import copy
 import os
@@ -158,6 +157,7 @@ def build_window(r,num_circles):
 
     ### Fill the negative values first so the positive overwrites it
 
+    circle_weights = [1,2,2,3,5]
     for i in range(num_circles):
         for theta in thetas:
            ###### only look at half-circles for the edge circles
@@ -169,14 +169,14 @@ def build_window(r,num_circles):
             # first edit negatives
             try:
                 n_window[ int(np.floor( r+(r+negative_r_offset)*np.sin(theta) )),
-                    int(np.floor( (2*i+1)*r+(r+negative_r_offset)*np.cos(theta) ))]=-1
+                    int(np.floor( (2*i+1)*r+(r+negative_r_offset)*np.cos(theta) ))]= -circle_weights[i]
             except:
                 pass
 
             # then edit positives
             try:
                 p_window[int(np.floor(r+ (r+positive_r_offset)*np.sin(theta))),
-                         int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]=1  
+                         int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]= circle_weights[i] 
             except:
                 pass
             
@@ -205,6 +205,7 @@ def square_circle_window(r,num_circles=5):
 
     ### Fill the negative values first so the positive overwrites it
 
+    circle_weights = [1,2,2,3,5]
     for i in range(num_circles):
         for theta in thetas:
            ###### only look at half-circles for the edge circles
@@ -216,7 +217,7 @@ def square_circle_window(r,num_circles=5):
             # then edit positives
             try:
                 p_window[int(np.floor(r+ (r+positive_r_offset)*np.sin(theta))),
-                         int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]=1  
+                         int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]= circle_weights[i]
             except:
                 pass
             
@@ -276,8 +277,8 @@ def find_circle(picture_path, new_scale=200, debug=True, crop=True):
     for r in r_arr: 
     # for each radius, build a window, and scan
     
-        #window = build_window(r,num_circles=num_circles)
-        window = square_circle_window(r,num_circles=num_circles)
+        window = build_window(r,num_circles=num_circles)
+        #window = square_circle_window(r,num_circles=num_circles)
         windows.append(window)
         
         # main computation is here: signal.convolve2d
