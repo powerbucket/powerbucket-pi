@@ -140,24 +140,20 @@ def read_image(picture_path, new_scale, debug=False):
 
     return image, imageWithEdges, scale_factor
 
-# builds a window of N circles side by side
-# the edge circles only contain half windows
-# must have at least N > 3 (else degenerate)
-def build_window(r,num_circles):
 
+def build_window(r,num_circles=5):
+    
+    positive_r_offset = 0
+    negative_r_offset = 1
+    
     ##### Build window #####
     # The window is composed of two rings, which sum to 0 in principle. 
     # A negative ring is slightly large than the positive ring.
-    p_window = np.zeros( (r*2, 2*r*num_circles) )
-    n_window = np.zeros( (r*2, 2*r*num_circles) )
-
+    window = np.zeros( (r*2, 2*r*num_circles) )
     thetas = np.linspace(0,2*np.pi,360,endpoint=False)
-    positive_r_offset = 0
-    negative_r_offset = 1
 
     ### Fill the negative values first so the positive overwrites it
 
-    circle_weights = [1,2,2,3,5]
     for i in range(num_circles):
         for theta in thetas:
            ###### only look at half-circles for the edge circles
@@ -168,26 +164,83 @@ def build_window(r,num_circles):
 
             # first edit negatives
             try:
-                n_window[ int(np.floor( r+(r+negative_r_offset)*np.sin(theta) )),
-                    int(np.floor( (2*i+1)*r+(r+negative_r_offset)*np.cos(theta) ))]= -circle_weights[i]
+                window[ int(np.floor( r+(r+negative_r_offset)*np.sin(theta) )),
+                    int(np.floor( (2*i+1)*r+(r+negative_r_offset)*np.cos(theta) ))]=-1
             except:
                 pass
-
+    for i in range(num_circles):
+        for theta in thetas:
             # then edit positives
             try:
-                p_window[int(np.floor(r+ (r+positive_r_offset)*np.sin(theta))),
-                         int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]= circle_weights[i] 
+                window[int(np.floor(r+ (r+positive_r_offset)*np.sin(theta))),
+                         int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]=1  
             except:
                 pass
             
             # weight center
             #p_window[int(np.floor(r )), int(np.floor((2*i+1)*r ))] = 2
     
-    weight = np.abs( np.sum(p_window)/ np.sum(n_window) )      
-    window = p_window + n_window * weight
     
-    return window
- 
+    n_window = np.array( window<0, int )
+    p_window = np.array( window>0, int )
+
+    #print( np.sum(p_window), np.sum(n_window) )
+    weight = np.abs( np.sum(p_window)/ np.sum(n_window) )
+    t_window = p_window - n_window * weight
+    
+    return t_window
+
+
+
+# OLDER VERSION
+## builds a window of N circles side by side
+## the edge circles only contain half windows
+## must have at least N > 3 (else degenerate)
+#def build_window(r,num_circles):
+#
+#    ##### Build window #####
+#    # The window is composed of two rings, which sum to 0 in principle. 
+#    # A negative ring is slightly large than the positive ring.
+#    p_window = np.zeros( (r*2, 2*r*num_circles) )
+#    n_window = np.zeros( (r*2, 2*r*num_circles) )
+#
+#    thetas = np.linspace(0,2*np.pi,360,endpoint=False)
+#    positive_r_offset = 0
+#    negative_r_offset = 1
+#
+#    ### Fill the negative values first so the positive overwrites it
+#
+#    circle_weights = [1,2,2,3,5]
+#    for i in range(num_circles):
+#        for theta in thetas:
+#           ###### only look at half-circles for the edge circles
+#            if i==0 and theta>np.pi/2 and theta<3*np.pi/2:
+#                continue
+#            if i==num_circles-1 and (theta<np.pi/2 or theta>3*np.pi/2):
+#                continue
+#
+#            # first edit negatives
+#            try:
+#                n_window[ int(np.floor( r+(r+negative_r_offset)*np.sin(theta) )),
+#                    int(np.floor( (2*i+1)*r+(r+negative_r_offset)*np.cos(theta) ))]= -circle_weights[i]
+#            except:
+#                pass
+#
+#            # then edit positives
+#            try:
+#                p_window[int(np.floor(r+ (r+positive_r_offset)*np.sin(theta))),
+#                         int(np.floor((2*i+1)*r+(r+positive_r_offset)*np.cos(theta)))]= circle_weights[i] 
+#            except:
+#                pass
+#            
+#            # weight center
+#            #p_window[int(np.floor(r )), int(np.floor((2*i+1)*r ))] = 2
+#    
+#    weight = np.abs( np.sum(p_window)/ np.sum(n_window) )      
+#    window = p_window + n_window * weight
+#    
+#    return window
+# 
 
 
 def square_circle_window(r,num_circles=5):
