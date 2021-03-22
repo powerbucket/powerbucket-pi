@@ -55,11 +55,12 @@ def write_google(wks,power,pic_time):
         wks.update_value('{}{}'.format(col_names[i+1],rownum),power[i])
 
 # writes timestamp and power to website
-def write_website(power, pic_time):
+def write_website(pic_path, power, pic_time):
     base_dir=os.path.dirname(os.path.realpath(__file__))
     command_list=[os.path.join(base_dir,'login.sh'),'write']
     command_list+=[str(pic_time)]
     command_list+=[str(numeral) for numeral in power]
+    command_list+=["@"+pic_path]
     subprocess.check_call(command_list)
     
 

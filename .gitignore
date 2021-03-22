@@ -8,3 +8,5 @@ google*
 !joe_test_easy.jpg
 
 *.log
+
+__pycache__

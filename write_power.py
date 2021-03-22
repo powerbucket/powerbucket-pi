@@ -13,17 +13,13 @@ import metron
 
 base_dir=os.path.dirname(os.path.realpath(__file__))
 
-verbose = True
-debug   = True
+verbose = False
+debug   = False
 use_google=False
 
 if use_google:
     import pygsheets
     gsheet_name = '912-power' # User input!
-    write_timestamp_and_power = metron.write_google
-else:
-    write_timestamp_and_power = metron.write_website
-
 
 def main():
     
@@ -78,9 +74,8 @@ def main():
         # a little jank: right now if the box is unchecked the update script returns one less output
         # so we prepend unchecked just to keep everything the same length, if no output appears
         # but if there is output that's not "checked" then it will still go smoothly 
-        if len(out)<4:
-            out.insert(0,'unchecked')
-        if out[0]=='checked':
+        # if the user wants to update, and doesn't want to do it on the website
+        if out[0]=='checked' and out[4]!='checked':
             x,y,r=metron.picture_to_circle_parameters(picture_path,
                                debug=debug)
             command_list=[os.path.join(base_dir,'login.sh'),'update',str(x),str(y),str(r)]
@@ -93,19 +88,22 @@ def main():
         next_time=time.time()
         print('getting parameters time: {}'.format(next_time-prev_time))
         prev_time=next_time
-            
 
-    power = metron.picture_to_power(picture_path,
-                 x,
-                 y,
-                 r,
-                 debug=debug)
+    # if user wants to calculate on website just set to 0s
+    if out[4]=='checked':
+        power = [0,0,0,0,0]
+    else:
+        power = metron.picture_to_power(picture_path,
+                                        x,
+                                        y,
+                                        r,
+                                        debug=debug)
     if verbose:
         next_time=time.time()
         print('getting power time: {}'.format(next_time-prev_time))
         prev_time=next_time
 
-    pic_time=datetime.now().strftime("%m/%d/%Y %H:%M:%S")
+    pic_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # to get the exact time at which the pic was taken
     # (might be off by a minute since the pi takes
@@ -113,9 +111,9 @@ def main():
     #pic_time=picture_path[:-4] 
 
     if use_google:
-        write_timestamp_and_power(wks,power,pic_time)
+        metron.write_google(wks,power,pic_time)
     else:
-        write_timestamp_and_power(power,pic_time)
+        metron.write_website(picture_path,power,pic_time)
 
     if verbose:
         next_time=time.time()
