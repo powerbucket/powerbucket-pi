@@ -1,11 +1,13 @@
 '''
   This is a library of functions for write_power.py
-  Updated: 25 January 2021
+  Updated: 4 April 2021
 '''
 
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
+import imutils
+import cv2
 
 # Pillow library for image handling
 from PIL import Image
@@ -79,7 +81,6 @@ def picture_to_power(picture_path,x,y,r,debug=False):
     cropped_image=image[y-r:y+r, x-r:x+(num_circles*2-1)*r]
 
 
-#    num_circles=5
     final_power=[]
     thetas = np.linspace(0,2*np.pi,num=200,endpoint=False) 
     for i,which_circle in enumerate(np.arange(num_circles)):
@@ -238,3 +239,121 @@ def picture_to_circle_parameters(picture_path, new_scale=200, debug=False):
     # ((,)) for html
     return ((x,y,r))
         
+
+def find_energy_pic(pic_file_array,debug=False):
+	n = len(pic_file_array)
+	pic_series = []
+	for i in range(n):
+		pic_series.append(cv2.imread(pic_file_array[i]))
+	if debug:
+		plt.imshow(pic_series[0])
+		plt.show()
+	
+	cropped = []
+	for i in range(n):
+		dimensions = pic_series[i].shape
+	        # height and width of image
+		h = pic_series[i].shape[0]
+		w = pic_series[i].shape[1]
+		xi = int(0.2*w) 
+		yi = int(0.15*h) 
+		xf = int(0.8*w) 
+		yf = int(0.5*h)
+		cropped.append(pic_series[i][yi:yf, xi:xf])
+	if debug:
+		plt.imshow(cropped[0])
+		plt.show()
+	
+	most_cnts = []
+	energy = cropped[0]
+	pic_number = 0
+	for i in range(n):
+		gray = cv2.cvtColor(cropped[i], cv2.COLOR_BGR2GRAY)
+		edged = cv2.Canny(gray, 50, 200, 255)
+		cnts = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+		most_cnts.append(imutils.grab_contours(cnts))
+		if i == 0:
+			most_contours = len(most_cnts[0])
+		if i>0:
+			if len(most_cnts[i]) > most_contours:
+				most_contours = len(most_cnts[i])
+				energy = cropped[i]
+				pic_number = i
+	plt.imshow(energy)
+	plt.show()
+	return pic_file_array[pic_number]
+
+
+def pic_to_dig_reading(x, y, w, h, s, energy_pic, debug=False):
+	# define the dictionary of digit segments
+	DIGITS_LOOKUP = {
+		(1, 1, 1, 0, 1, 1, 1): 0,
+		(0, 0, 1, 0, 0, 1, 0): 1,
+		(1, 0, 1, 1, 1, 1, 0): 2,
+		(1, 0, 1, 1, 0, 1, 1): 3,
+		(0, 1, 1, 1, 0, 1, 0): 4,
+		(1, 1, 0, 1, 0, 1, 1): 5,
+		(1, 1, 0, 1, 1, 1, 1): 6,
+		(1, 0, 1, 0, 0, 1, 0): 7,
+		(1, 1, 1, 1, 1, 1, 1): 8,
+		(1, 1, 1, 1, 0, 1, 1): 9
+	}
+
+	# prep the picture to read pixels
+	im = cv2.imread(energy_pic)
+	plt.imshow(im)
+	plt.show()
+	dimensions = im.shape
+	y = im.shape[0] - y
+
+	gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+	blurred = cv2.GaussianBlur(gray, (5,5), 0)
+	thresh = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)[1]
+	plt.imshow(thresh)
+	plt.show()
+	# loop over each of the digits
+	digits = []
+	for i in range(5): 	
+		# extract the digit ROI
+		roi = thresh[y:y+h, x:x+w]
+		plt.imshow(roi)
+		plt.show()
+		(roiH, roiW) = roi.shape
+		(dW, dH) = (int(roiW * 0.25), int(roiH * 0.10))
+		dHC = int(roiH * 0.05)
+		
+		# define the set of 7 segments
+		segments = [
+			((dW, 0), (w - dW, dH)), # top
+			((0, 0), (dW, h//2)), # top left
+			((w - dW, 0), (w, h//2)), # top right
+			((dW, h//2 - dHC), (w - dW, h//2 + dHC)), # center
+			((0, h//2), (dW, h)), # bottom left
+			((w - dW, h//2), (w, h)), # bottom right
+			((dW, h - dH), (w - dW, h)) # bottom			
+		]
+		on = [0] * len(segments)
+
+		for (i, ((xA, yA), (xB, yB))) in enumerate(segments):
+			# extract the segment ROI
+			# count the total number of thresholded pixels in the segment
+			# and then compute the area of the segment
+			segROI = roi[yA:yB, xA:xB]
+			total = cv2.countNonZero(segROI)
+			area = (xB - xA) * (yB - yA)
+			
+			# if the total number of non-zero pixels is greater than 40% of the area
+			# mark the segment as "on"
+			if total / float(area) > 0.4:
+				on[i] = 1
+
+		digit = DIGITS_LOOKUP[tuple(on)]
+		digits.append(digit)
+	
+		x = x+s
+	
+	return digits
+
+
+
+
