@@ -103,7 +103,7 @@ def main():
                 for this_path in pictures_paths:
                     subprocess.check_output(['raspistill',
                                              '-vf','-hf','-o',
-                                             picture_path])
+                                             this_path])
                     time.sleep(sleep_time)
             subprocess.check_output(['python', 'flash_off.py'])
         
