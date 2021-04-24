@@ -100,7 +100,7 @@ def main():
                 num_pics=5
                 sleep_time=2
                 picture_paths=['{}_{}.jpg'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),i) for i in range(num_pics)]
-                for this_path in pictures_paths:
+                for this_path in picture_paths:
                     subprocess.check_output(['raspistill',
                                              '-vf','-hf','-o',
                                              this_path])
