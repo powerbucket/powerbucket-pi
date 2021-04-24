@@ -1,7 +1,7 @@
 # Updated 25 Jan 2015
 
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 import sys
 import os
@@ -89,7 +89,7 @@ def main():
         calculate_online=(out[-1]=='checked')
 
         if take_pic:
-            subprocess.check_output(['python', 'flash_on.py'])
+            subprocess.check_output(['python', os.path.join(base_dir, 'flash_on.py')])
             if is_analog:
                 picture_path=os.path.join(base_dir,
                                           "pictures",
@@ -100,7 +100,7 @@ def main():
             else:
                 pic_file_array=[]
                 num_pics=5
-                sleep_time=2
+                sleep_time=2.8
                 for i in range(num_pics):
                     pic_file_array.append(os.path.join(base_dir,
                                                       "pictures",
@@ -109,7 +109,7 @@ def main():
                                              '-vf','-hf','-o',
                                              pic_file_array[-1]])
                     time.sleep(sleep_time)
-            subprocess.check_output(['python', 'flash_off.py'])
+            subprocess.check_output(['python', os.path.join(base_dir, 'flash_off.py')])
         
         if update_params and not calculate_online:
             if is_analog:
