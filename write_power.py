@@ -93,7 +93,7 @@ def main():
             if is_analog:
                 picture_path=os.path.join(base_dir,
                                           "pictures",
-                                          str(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))+'.jpg'))
+                                          str(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))+'.jpg')
                 subprocess.check_output(['raspistill',
                                          '-vf','-hf','-o',
                                          picture_path])
