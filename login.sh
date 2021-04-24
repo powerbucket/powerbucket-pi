@@ -1,6 +1,6 @@
 #!/bin/bash
 
-WEBSITE=http://127.0.0.1:8000/ #"http://powerbucket-test.herokuapp.com/"
+WEBSITE="http://powerbucket-test.herokuapp.com/"
 LOGIN_URL=$WEBSITE"accounts/login/"
 SUBMISSION_URL=$WEBSITE"readings/submission/"
 SETTINGS_URL=$WEBSITE"readings/change_settings/"
