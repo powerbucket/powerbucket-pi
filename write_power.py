@@ -91,19 +91,23 @@ def main():
         if take_pic:
             subprocess.check_output(['python', 'flash_on.py'])
             if is_analog:
-                picture_path=str(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))+'.jpg'
-                subprocess.check_output(['python', 'flash_on.py'])
+                picture_path=os.path.join(base_dir,
+                                          "pictures",
+                                          str(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))+'.jpg'))
                 subprocess.check_output(['raspistill',
                                          '-vf','-hf','-o',
                                          picture_path])
             else:
+                pic_file_array=[]
                 num_pics=5
                 sleep_time=2
-                picture_paths=['{}_{}.jpg'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),i) for i in range(num_pics)]
-                for this_path in pictures_paths:
+                for i in range(num_pics):
+                    pic_file_array.append(os.path.join(base_dir,
+                                                      "pictures",
+                                                      '{}_{}.jpg'.format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),i)))
                     subprocess.check_output(['raspistill',
                                              '-vf','-hf','-o',
-                                             this_path])
+                                             pic_file_array[-1]])
                     time.sleep(sleep_time)
             subprocess.check_output(['python', 'flash_off.py'])
         
@@ -132,7 +136,6 @@ def main():
         power = [0,0,0,0,0]
     else:
         if is_analog:
-            picture_path=pic_file_array[0]
             power = metron.picture_to_power(picture_path,
                                             x,
                                             y,
